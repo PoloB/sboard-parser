@@ -1,2 +1,2 @@
 # sboard-parser
-Parser for Storyboard Pro project files
+Python parser for Storyboard Pro project files
