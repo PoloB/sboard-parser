@@ -13,7 +13,7 @@ import keyword
 import re
 import xml.etree.ElementTree as ET
 
-import cls_template
+from sboardparser import cls_template
 
 __author__ = "Paul-Emile Buteau"
 __maintainer__ = "Paul-Emile Buteau"
@@ -106,12 +106,29 @@ def get_class(class_name, field_names):
 class SBoardParser(object):
     """Parser of Storyboard Pro .sboard files."""
 
-    xml_version = "1.0"
+    def __init__(self, content):
 
-    def __init__(self, sboard_path):
-        self.__sboard_path = sboard_path
+        # This is the content of the sboard file. It is never modified
+        self.__original_content = content
+        self.__root_node = None
+        self.__parse()
 
-    def parse(self):
+    @classmethod
+    def from_file(cls, sboard_path):
+        """Returns a parser initialized from the given file path.
+
+        Args:
+            sboard_path (str): path to the Toon Boom Storyboard Pro sboard file
+
+        Returns:
+            SBoardParser
+        """
+        with open(sboard_path, "r") as f:
+            content = f.read()
+
+        return cls(content)
+
+    def __parse(self):
         """Returns the SBoardProject parsed from the Storyboard Pro path.
         The whole hierarchy of object is built on this call.
 
@@ -238,7 +255,7 @@ class SBoardParser(object):
 
             return cls_by_name[name](**obj_dict)
 
-        root = ET.parse(self.__sboard_path).getroot()
+        root = ET.fromstring(self.__original_content)
         full_dict = xml_to_dict(root)
 
         # Craft all the objects
@@ -254,4 +271,8 @@ class SBoardParser(object):
         obj = craft_obj_hierarchy_from_dict(root.tag, full_dict)
         assert isinstance(obj, cls_template.SBoardProject), (type(obj), obj)
 
-        return obj
+        self.__root_node = obj
+
+    @property
+    def root(self):
+        return self.__root_node

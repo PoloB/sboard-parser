@@ -8,10 +8,10 @@ project file.
 Usage example:
 
 ```python
-from sboardparser import SBoardParser
+from sboardparser import parse
 
-parser = SBoardParser("/path/to/your/sboard/file.sboard")
-project = parser.parse()
+parser = parse("/path/to/your/sboard/file.sboard")
+project = parser.root
 
 scenes = project.scenes
 

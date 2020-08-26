@@ -6,7 +6,7 @@
 import os
 from unittest import TestCase
 
-from sboardparser import SBoardParser
+from sboardparser import parse
 
 
 __author__ = "Paul-Emile Buteau"
@@ -15,25 +15,19 @@ __email__ = "pebuteau@studiohari.com"
 
 
 SAMPLE_DIRECTORY = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                "test_samples")
+                                "samples")
 
 
 class SBoardParserTest(TestCase):
 
     def test_empty_project(self):
         test_path = os.path.join(SAMPLE_DIRECTORY, "empty_project.sboard")
-
-        p = SBoardParser(test_path)
-        p.parse()
+        parse(test_path)
 
     def test_01(self):
         test_path = os.path.join(SAMPLE_DIRECTORY, "test_01.sboard")
-
-        p = SBoardParser(test_path)
-        p.parse()
+        parse(test_path)
 
     def test_02(self):
         test_path = os.path.join(SAMPLE_DIRECTORY, "test_01.sboard")
-
-        p = SBoardParser(test_path)
-        p.parse()
+        parse(test_path)
