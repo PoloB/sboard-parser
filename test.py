@@ -21,7 +21,6 @@ SAMPLE_DIRECTORY = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 class SBoardParserTest(TestCase):
 
     def test_empty_project(self):
-
         test_path = os.path.join(SAMPLE_DIRECTORY, "empty_project.sboard")
 
         p = SBoardParser(test_path)
