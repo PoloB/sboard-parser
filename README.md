@@ -1,5 +1,5 @@
 # sboard-parser
-Python parser for Storyboard Pro project files.
+Python parser for Toon Boom Storyboard Pro project files.
 
 Storyboard Pro .sboard files are simple xml files.
 This parser build a hierarchy of objects that represents all the elements in the
