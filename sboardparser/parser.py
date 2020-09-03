@@ -275,4 +275,9 @@ class SBoardParser(object):
 
     @property
     def root(self):
+        """Returns the project node of the file which is also the root node.
+
+        Returns:
+            SBoardProject
+        """
         return self.__root_node
