@@ -278,6 +278,6 @@ class SBoardParser(object):
         """Returns the project node of the file which is also the root node.
 
         Returns:
-            SBoardProject
+            cls_template.SBoardProject: project node of the parser
         """
         return self.__root_node
