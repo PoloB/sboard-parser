@@ -43,6 +43,11 @@ class SBoardProject(_SBoardAbstractObject):
 
     @property
     def scenes(self):
+        """Returns the list of scenes of the project.
+
+        Returns:
+            list[SBoardScene]
+        """
         return self._data.get('scenes', [])
 
     @property
@@ -106,3 +111,27 @@ class SBoardScene(_SBoardAbstractObject):
             str
         """
         return self._data['name']
+
+    @property
+    def columns(self):
+        """Returns the column associated to this scene"""
+        return self._data['columns']
+
+    @property
+    def start_frame(self):
+        """Returns the start frame of the scene relative to the whole project.
+
+        Returns:
+            int
+        """
+
+        return int(self.columns[0].warp_sequences[0].exposures.split("-")[0])
+
+    @property
+    def end_frame(self):
+        """Returns the start frame of the scene relative to the whole project.
+
+        Returns:
+            int
+        """
+        return int(self.columns[0].warp_sequences[0].exposures.split("-")[1])

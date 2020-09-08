@@ -1,4 +1,3 @@
-
 """
 Parser for Storyboard Pro .sboard xml file.
 The SBoardParser class will let you build a hierarchy of objects from the
@@ -7,18 +6,36 @@ The classes used to represent object from the xml hierarchy are either created
 using the class templates found in the cls_template module or created at runtime.
 """
 
-
 import collections
 import keyword
-import re
-import xml.etree.ElementTree as ET
+
+from xml.etree import ElementTree
 
 from sboardparser import cls_template
+from sboardparser import const as sb_const
+
 
 __author__ = "Paul-Emile Buteau"
 __maintainer__ = "Paul-Emile Buteau"
 
 
+def mnemo_cache(func):
+
+    cache = {}
+
+    def wrapper(input_name):
+
+        if input_name in cache:
+            return cache[input_name]
+
+        ret = func(input_name)
+        cache[input_name] = ret
+        return ret
+
+    return wrapper
+
+
+@mnemo_cache
 def camel_to_snake(name):
     """Convert camel case to snake case.
 
@@ -28,8 +45,8 @@ def camel_to_snake(name):
     Returns:
           str
     """
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+    return ''.join(['_' + c.lower() if c.isupper() else c
+                    for c in name]).lstrip('_')
 
 
 def namedtuple_with_defaults(typename, field_names, default_values=()):
@@ -91,12 +108,12 @@ def get_class(class_name, field_names):
     # cls_copy = type(cls.__name__ + "Extended", (cls,), dict(cls.__dict__))
 
     for f in field_diff:
-
         def get_property(field_name):
             def prop_(self):
                 return self._data[field_name]
 
             return property(prop_)
+
         # Add the field to the known class
         setattr(cls, f, get_property(f))
 
@@ -136,50 +153,66 @@ class SBoardParser(object):
             SBoardProject
         """
         attr_by_class = collections.defaultdict(set)
-        unspecialized_names = {'column'}
-
         change_of_name = collections.defaultdict(dict)
 
-        def xml_to_dict(xml_tree_element, parent=None):
+        def xml_to_dict(xml_tree_element):
             """Recursive function that takes the given xml ElementTree and
             create a dict from it.
 
             Args:
                 xml_tree_element (ElementTree): node of the xml tree to
                     convert to dict.
-                parent (str, None): name of the parent. Being used to build
-                    key of dictionary which have vague names
 
             Returns:
                 dict
             """
 
-            key_ = camel_to_snake(xml_tree_element.tag)
-
-            if key_ in unspecialized_names:
-                key_ = parent + "_" + key_
-
-            is_list = len(set(a.tag for a in xml_tree_element)) == 1 \
+            # First we check the check when children of a given xml element are
+            # all the same. For example:
+            # <scenes>
+            #   <scene>...</scene>
+            #   <scene>...</scene>
+            #   <scene>...</scene>
+            # </scenes>
+            is_implicit_list = len(set(a.tag for a in xml_tree_element)) == 1 \
                 and not xml_tree_element.attrib
 
-            if is_list:
+            key_ = camel_to_snake(xml_tree_element.tag)
+
+            if is_implicit_list:
 
                 object_list = []
 
                 for a in xml_tree_element:
 
                     akey = camel_to_snake(a.tag)
-
-                    if akey in unspecialized_names:
-                        akey = parent + "_" + akey
-
-                    object_list.append({akey: xml_to_dict(a, parent)})
+                    object_list.append({akey: xml_to_dict(a)})
 
                 return object_list
 
             # Craft all children data
-            data_dict = {camel_to_snake(a.tag): xml_to_dict(a, key_)
-                         for a in xml_tree_element}
+            data_dict = {}
+
+            for a in xml_tree_element:
+
+                # Handle explicit cast to list
+                if a.tag in sb_const.LIST_ATTRIBUTES:
+
+                    parent_key = sb_const.LIST_ATTRIBUTES[a.tag]
+
+                    # Initialize if needed
+                    if parent_key not in data_dict:
+                        data_dict[parent_key] = []
+
+                    data_key = camel_to_snake(a.tag)
+
+                    # Insert the data
+                    obj_ = xml_to_dict(a)
+                    data_dict[parent_key].append({data_key: obj_})
+                else:
+                    data_key = camel_to_snake(a.tag)
+                    data_dict[data_key] = xml_to_dict(a)
+
             data_dict.update(xml_tree_element.attrib)
 
             # Make sure we are not using python keyword names
@@ -255,7 +288,7 @@ class SBoardParser(object):
 
             return cls_by_name[name](**obj_dict)
 
-        root = ET.fromstring(self.__original_content)
+        root = ElementTree.fromstring(self.__original_content)
         full_dict = xml_to_dict(root)
 
         # Craft all the objects

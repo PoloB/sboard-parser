@@ -31,3 +31,14 @@ class SBoardParserTest(TestCase):
     def test_02(self):
         test_path = os.path.join(SAMPLE_DIRECTORY, "test_01.sboard")
         parse(test_path)
+
+    def test_additional_properties(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "empty_project.sboard")
+        parser = parse(test_path)
+
+        project_root = parser.root
+
+        self.assertIsInstance(project_root.scenes[0].start_frame, int)
+        self.assertIsInstance(project_root.scenes[0].end_frame, int)
+        self.assertEqual(1, project_root.scenes[0].start_frame)
+        print(project_root.scenes[0].end_frame)
