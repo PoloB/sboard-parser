@@ -1,3 +1,3 @@
-from .parser import SBoardParser
+from .parser import SBoardProject
 
-parse = SBoardParser.from_file
+parse = SBoardProject.from_file

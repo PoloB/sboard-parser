@@ -19,11 +19,6 @@ for scene in scenes:
     print(scene.id)
 ```
 
-The classes used to represent the project hierarchy are either get from the 
-cls_template module or built at runtime using namedtuple.
-This makes sure the parser will keep working even if the Toon Boom team adds
-new features.
-
 The parser has been tested on files from the following Storyboard Pro versions:
 * 14.20.4
 

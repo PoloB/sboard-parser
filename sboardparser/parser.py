@@ -2,315 +2,214 @@
 Parser for Storyboard Pro .sboard xml file.
 The SBoardParser class will let you build a hierarchy of objects from the
 given sboard file path.
-The classes used to represent object from the xml hierarchy are either created
-using the class templates found in the cls_template module or created at runtime.
 """
 
-import collections
-import keyword
 
-from xml.etree import ElementTree
-
-from sboardparser import cls_template
-from sboardparser import const as sb_const
+import abc
+from collections import namedtuple
+from xml.etree import cElementTree
 
 
-__author__ = "Paul-Emile Buteau"
-__maintainer__ = "Paul-Emile Buteau"
+def _get_timeline(scene_node):
+    # Shot timeline is described in the column with type=0
+    columns = scene_node.find('columns')
+    return next(c for c in columns.findall("column")
+                if c.attrib['type'] == "0")
 
 
-def mnemo_cache(func):
-
-    cache = {}
-
-    def wrapper(input_name):
-
-        if input_name in cache:
-            return cache[input_name]
-
-        ret = func(input_name)
-        cache[input_name] = ret
-        return ret
-
-    return wrapper
+SBoardFrameRange = namedtuple("SBoardFrameRange", "frame_in frame_out")
 
 
-@mnemo_cache
-def camel_to_snake(name):
-    """Convert camel case to snake case.
+class SboardNode(object):
 
-    Args:
-        name (str)
+    __metaclass__ = abc.ABCMeta
 
-    Returns:
-          str
-    """
-    return ''.join(['_' + c.lower() if c.isupper() else c
-                    for c in name]).lstrip('_')
+    def __init__(self, xml_node):
+        self.__xml_node = xml_node
+
+    @property
+    def xml_node(self):
+        return self.__xml_node
 
 
-def namedtuple_with_defaults(typename, field_names, default_values=()):
-    """Returns a new class built with namedtuple but with default arguments to
-    None.
+class SBoardPanel(SboardNode):
 
-    Args:
-        typename (str): name of the class to create
-        field_names (str): field names of the class
-        default_values (tuple): default values to give to fields
+    def __init__(self, xml_node, scene):
+        super(SBoardPanel, self).__init__(xml_node)
+        self.__scene = scene  # /project/scenes/scene
 
-    Returns:
-        class
-    """
-    T = collections.namedtuple(typename, field_names)
-    T.__new__.__defaults__ = (None,) * len(T._fields)
-    if isinstance(default_values, collections.abc.Mapping):
-        prototype = T(**default_values)
-    else:
-        prototype = T(*default_values)
-    T.__new__.__defaults__ = tuple(prototype)
-    return T
+    def __get_info(self):
+        """Returns the scene node info from from the node metadata"""
+        # Get the scene info metadata
+        panel_info = None
 
+        for meta in self.xml_node.find('metas').findall('meta'):
 
-def get_class(class_name, field_names):
-    """Returns a class from the given class name with the given fields.
-    This function first look in the cls_template module to find a template for
-    the given class name. If it can't be found, the class is built using the
-    namedtuple_with_defaults factory function.
-    If some fields are missing from the class found in cls_template, they will
-    be added dynamically at runtime.
+            if meta.attrib['type'] != "panelInfo":
+                continue
 
-    Args:
-        class_name (str): name of the class to create
-        field_names (str): field names of the class
+            panel_info = meta.find('panelInfo')
+            break
 
-    Returns:
-        class
-    """
-    cls = cls_template.__dict__.get(class_name)
+        assert panel_info is not None, "No panel info found"
+        return panel_info
 
-    if not cls:
-        return namedtuple_with_defaults(class_name, field_names)
+    @property
+    def id(self):
+        return self.xml_node.attrib['id']
 
-    # Compare known class fields with requested ones
-    requested_fields = set(field_names.split(" "))
-    known_fields = set(dir(cls))
+    @property
+    def name(self):
+        return self.__get_info().attrib["name"]
 
-    field_diff = requested_fields.difference(known_fields)
+    @property
+    def scene(self):
+        return self.__scene
 
-    if not field_diff:
-        return cls
+    @property
+    def frame_range(self):
 
-    # There are unsatisfied fields
-    print("Known class {} does not support the following fields: {}"
-          "".format(class_name, ", ".join(field_diff)))
+        timeline = _get_timeline(self.__scene.xml_node)
 
-    # Create a copy of the class
-    # cls_copy = type(cls.__name__ + "Extended", (cls,), dict(cls.__dict__))
+        warp_seq = next(ws for ws in timeline
+                        if ws.attrib['id'] == self.id)
 
-    for f in field_diff:
-        def get_property(field_name):
-            def prop_(self):
-                return self._data[field_name]
+        return SBoardFrameRange(int(warp_seq.attrib["start"]),
+                                int(warp_seq.attrib["end"]))
 
-            return property(prop_)
+    @property
+    def cut_range(self):
+        # Get the panel within the timeline of the scene
+        timeline = _get_timeline(self.__scene.xml_node)
 
-        # Add the field to the known class
-        setattr(cls, f, get_property(f))
+        warp_seq = next(ws for ws in timeline.findall("warpSeq")
+                        if ws.attrib['id'] == self.id)
 
-    return cls
+        exposure = warp_seq.attrib["exposures"]
+        ex_split = exposure.split("-")
+
+        assert 0 < len(ex_split) < 3
+
+        if len(ex_split) == 1:
+            return SBoardFrameRange(int(exposure), int(exposure))
+
+        return SBoardFrameRange(int(ex_split[0]), int(ex_split[1]))
 
 
-class SBoardParser(object):
-    """Parser of Storyboard Pro .sboard files."""
+class SBoardScene(SboardNode):
+    """A Storyboard Pro Scene has it is conceptually defined within StoryBoard
+     Pro. A scene is a collection of panels (see SBoardPanel) that can sit on
+     the M"""
 
-    def __init__(self, content):
+    def __init__(self, xml_node, project):
+        super(SBoardScene, self).__init__(xml_node)
+        self.__project = project  # /project
 
-        # This is the content of the sboard file. It is never modified
-        self.__original_content = content
-        self.__root_node = None
-        self.__parse()
+    def __get_info(self):
+        """Returns the scene node info from from the node metadata"""
+        # Get the scene info metadata
+        scene_info = None
+
+        for meta in self.xml_node.find('metas').findall('meta'):
+
+            if meta.attrib['type'] != "sceneInfo":
+                continue
+
+            scene_info = meta.find('sceneInfo')
+            break
+
+        assert scene_info is not None, "No scene info found"
+        return scene_info
+
+    @property
+    def id(self):
+        return self.xml_node.attrib["id"]
+
+    @property
+    def name(self):
+        return self.__get_info().attrib["name"]
+
+    @property
+    def cut_range(self):
+
+        scene_iter = self.__project.xml_node.find('scenes').findall('scene')
+        top_node = next(scene for scene in scene_iter
+                        if scene.attrib['name'] == 'Top')
+        timeline = _get_timeline(top_node)
+
+        warp_seq = next(ws for ws in timeline.findall("warpSeq")
+                        if ws.attrib['id'] == self.id)
+
+        exposure = warp_seq.attrib["exposures"]
+        ex_split = exposure.split("-")
+
+        assert 0 < len(ex_split) < 3
+
+        if len(ex_split) == 1:
+            return SBoardFrameRange(int(exposure), int(exposure))
+
+        return SBoardFrameRange(int(ex_split[0]), int(ex_split[1]))
+
+    @property
+    def frame_range(self):
+
+        scene_iter = self.__project.xml_node.find('scenes').findall('scene')
+        top_node = next(scene for scene in scene_iter
+                        if scene.attrib['name'] == 'Top')
+        timeline = _get_timeline(top_node)
+
+        warp_seq = next(ws for ws in timeline
+                        if ws.attrib['id'] == self.id)
+
+        return SBoardFrameRange(int(warp_seq.attrib["start"]),
+                                int(warp_seq.attrib["end"]))
+
+    @property
+    def panels(self):
+
+        scene_iter = self.__project.xml_node.find('scenes').findall('scene')
+
+        all_panels_by_id = {panel.attrib['id']: panel
+                            for panel in scene_iter
+                            if 'panel' in panel.attrib['name']}
+
+        timeline = _get_timeline(self.xml_node)
+
+        # Evaluate all the warp sequences
+        for warp_seq in timeline.findall('warpSeq'):
+
+            # Only get existing panels
+            panel_id = warp_seq.attrib["id"]
+
+            if panel_id not in all_panels_by_id:
+                continue
+
+            yield SBoardPanel(all_panels_by_id[panel_id], self)
+
+
+class SBoardProject(SboardNode):
+    """A StoryBoard Pro project abstraction built usually from a .sboard file
+    (see from_file class method). It basically wraps the xml content of the
+    .sboard file to provides a more intuitive way of accessing components of a
+    project than just parsing directly the xml content."""
 
     @classmethod
     def from_file(cls, sboard_path):
-        """Returns a parser initialized from the given file path.
-
-        Args:
-            sboard_path (str): path to the Toon Boom Storyboard Pro sboard file
-
-        Returns:
-            SBoardParser
-        """
-        with open(sboard_path, "r") as f:
-            content = f.read()
-
-        return cls(content)
-
-    def __parse(self):
-        """Returns the SBoardProject parsed from the Storyboard Pro path.
-        The whole hierarchy of object is built on this call.
+        """Returns a SBoardProject from the given path.
 
         Returns:
             SBoardProject
         """
-        attr_by_class = collections.defaultdict(set)
-        change_of_name = collections.defaultdict(dict)
-
-        def xml_to_dict(xml_tree_element):
-            """Recursive function that takes the given xml ElementTree and
-            create a dict from it.
-
-            Args:
-                xml_tree_element (ElementTree): node of the xml tree to
-                    convert to dict.
-
-            Returns:
-                dict
-            """
-
-            # First we check the check when children of a given xml element are
-            # all the same. For example:
-            # <scenes>
-            #   <scene>...</scene>
-            #   <scene>...</scene>
-            #   <scene>...</scene>
-            # </scenes>
-            is_implicit_list = len(set(a.tag for a in xml_tree_element)) == 1 \
-                and not xml_tree_element.attrib
-
-            key_ = camel_to_snake(xml_tree_element.tag)
-
-            if is_implicit_list:
-
-                object_list = []
-
-                for a in xml_tree_element:
-
-                    akey = camel_to_snake(a.tag)
-                    object_list.append({akey: xml_to_dict(a)})
-
-                return object_list
-
-            # Craft all children data
-            data_dict = {}
-
-            for a in xml_tree_element:
-
-                # Handle explicit cast to list
-                if a.tag in sb_const.LIST_ATTRIBUTES:
-
-                    parent_key = sb_const.LIST_ATTRIBUTES[a.tag]
-
-                    # Initialize if needed
-                    if parent_key not in data_dict:
-                        data_dict[parent_key] = []
-
-                    data_key = camel_to_snake(a.tag)
-
-                    # Insert the data
-                    obj_ = xml_to_dict(a)
-                    data_dict[parent_key].append({data_key: obj_})
-                else:
-                    data_key = camel_to_snake(a.tag)
-                    data_dict[data_key] = xml_to_dict(a)
-
-            data_dict.update(xml_tree_element.attrib)
-
-            # Make sure we are not using python keyword names
-            for k in list(data_dict.keys()):
-                if not keyword.iskeyword(k):
-                    continue
-
-                # Replace the name
-                v = data_dict.pop(k)
-                new_name = key_ + "_" + k
-                data_dict[new_name] = v
-
-                # Store the change of name so it is possible to rewrite the
-                # xml back
-                change_of_name[k][new_name] = k
-
-            # Register the attributes of the tree element
-            for k in data_dict.keys():
-                attr_by_class[key_].add(k)
-
-            return data_dict
-
-        def craft_obj_hierarchy_from_list(list_data):
-            """Build list of objects for the given list of dict.
-
-            Args:
-                list_data (list[dict])
-
-            Returns:
-                list[object]
-            """
-
-            # If this is a list, we know this is a dictionary with a single key
-            all_objects = []
-
-            for d in list_data:
-                name = list(d.keys())[0]
-                d_data = list(d.values())[0]
-                all_objects.append(craft_obj_hierarchy_from_dict(name, d_data))
-
-            return all_objects
-
-        def craft_obj_hierarchy_from_dict(name, data):
-            """Returns the root of the object hierarchy built from the given
-            data.
-
-            Args:
-                name (str): key name of the object
-                data (dict): content of the object
-
-            Returns:
-                obj
-            """
-
-            # Craft the sub objects
-            if isinstance(data, list):
-                return craft_obj_hierarchy_from_list(data)
-
-            obj_dict = {}
-
-            for key_name, sub_data in data.items():
-                if isinstance(sub_data, dict):
-                    d = craft_obj_hierarchy_from_dict(key_name, sub_data)
-                elif isinstance(sub_data, list):
-                    d = craft_obj_hierarchy_from_list(sub_data)
-                else:
-                    d = sub_data
-
-                obj_dict[key_name] = d
-
-            if not obj_dict and name not in cls_by_name:
-                return None
-
-            return cls_by_name[name](**obj_dict)
-
-        root = ElementTree.fromstring(self.__original_content)
-        full_dict = xml_to_dict(root)
-
-        # Craft all the objects
-        cls_by_name = {}
-
-        for key, attrs in attr_by_class.items():
-            cls_name = "SBoard" + "".join([k.capitalize()
-                                           for k in key.split("_")])
-
-            cls = get_class(cls_name, " ".join(attrs))
-            cls_by_name[key] = cls
-
-        obj = craft_obj_hierarchy_from_dict(root.tag, full_dict)
-        assert isinstance(obj, cls_template.SBoardProject), (type(obj), obj)
-
-        self.__root_node = obj
+        return cls(cElementTree.parse(sboard_path))
 
     @property
-    def root(self):
-        """Returns the project node of the file which is also the root node.
+    def scenes(self):
+        """Generator of scenes within the project.
 
-        Returns:
-            cls_template.SBoardProject: project node of the parser
+        Yields:
+            SBoardScene
         """
-        return self.__root_node
+        for scene in self.xml_node.find("scenes").findall("scene"):
+
+            if "shot" in scene.attrib['name']:
+                yield SBoardScene(scene, self)
