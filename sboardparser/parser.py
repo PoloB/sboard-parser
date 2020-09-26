@@ -16,7 +16,9 @@ def _get_timeline(scene_node):
                 if c.attrib['type'] == "0")
 
 
-class SboardNode(object):
+class _SBoardNode:
+    """Abstract class for all Story Board Pro objects derived from a given
+    xml node of the .sboard file."""
 
     __metaclass__ = abc.ABCMeta
 
@@ -29,10 +31,11 @@ class SboardNode(object):
         return self.__xml_node
 
 
-class SBoardPanel(SboardNode):
+class SBoardPanel(_SBoardNode):
+    """Representation of a Story Board Pro Panel."""
 
     def __init__(self, xml_node, scene):
-        super(SBoardPanel, self).__init__(xml_node)
+        super().__init__(xml_node)
         self.__scene = scene  # /project/scenes/scene
 
     def __get_info(self):
@@ -52,7 +55,7 @@ class SBoardPanel(SboardNode):
         return panel_info
 
     @property
-    def id(self):
+    def uid(self):
         """Returns the unique identifier of the panel.
 
         Returns:
@@ -88,7 +91,7 @@ class SBoardPanel(SboardNode):
         timeline = _get_timeline(self.__scene.xml_node)
 
         warp_seq = next(ws for ws in timeline
-                        if ws.attrib['id'] == self.id)
+                        if ws.attrib['id'] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
@@ -104,7 +107,7 @@ class SBoardPanel(SboardNode):
         timeline = _get_timeline(self.__scene.xml_node)
 
         warp_seq = next(ws for ws in timeline.findall("warpSeq")
-                        if ws.attrib['id'] == self.id)
+                        if ws.attrib['id'] == self.uid)
 
         exposure = warp_seq.attrib["exposures"]
         ex_split = exposure.split("-")
@@ -117,13 +120,13 @@ class SBoardPanel(SboardNode):
         return int(ex_split[0]), int(ex_split[1])
 
 
-class SBoardScene(SboardNode):
+class SBoardScene(_SBoardNode):
     """A Storyboard Pro Scene has it is conceptually defined within StoryBoard
      Pro. A scene is a collection of panels (see SBoardPanel) which is then
      placed on the project timeline."""
 
     def __init__(self, xml_node, project):
-        super(SBoardScene, self).__init__(xml_node)
+        super().__init__(xml_node)
         self.__project = project  # /project
 
     def __get_info(self):
@@ -143,7 +146,7 @@ class SBoardScene(SboardNode):
         return scene_info
 
     @property
-    def id(self):
+    def uid(self):
         """Returns the unique identifier of the scene.
 
         Returns:
@@ -175,7 +178,7 @@ class SBoardScene(SboardNode):
         timeline = _get_timeline(top_node)
 
         warp_seq = next(ws for ws in timeline.findall("warpSeq")
-                        if ws.attrib['id'] == self.id)
+                        if ws.attrib['id'] == self.uid)
 
         exposure = warp_seq.attrib["exposures"]
         ex_split = exposure.split("-")
@@ -202,7 +205,7 @@ class SBoardScene(SboardNode):
         timeline = _get_timeline(top_node)
 
         warp_seq = next(ws for ws in timeline
-                        if ws.attrib['id'] == self.id)
+                        if ws.attrib['id'] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
@@ -238,7 +241,7 @@ class SBoardScene(SboardNode):
             yield SBoardPanel(all_panels_by_id[panel_id], self)
 
 
-class SBoardProject(SboardNode):
+class SBoardProject(_SBoardNode):
     """A StoryBoard Pro project abstraction built usually from a .sboard file
     (see from_file class method). It basically wraps the xml content of the
     .sboard file to provides a more intuitive way of accessing components of a

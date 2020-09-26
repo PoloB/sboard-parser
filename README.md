@@ -10,13 +10,12 @@ Usage example:
 ```python
 from sboardparser import parse
 
-parser = parse("/path/to/your/sboard/file.sboard")
-project = parser.root
+project = parse("/path/to/your/sboard/file.sboard")
 
 scenes = project.scenes
 
 for scene in scenes:
-    print(scene.id)
+    print(scene.uid)
 ```
 
 The parser has been tested on files from the following Storyboard Pro versions:

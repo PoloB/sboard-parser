@@ -47,7 +47,7 @@ class SBoardParserTest(TestCase):
 
         # Test name and id
         self.assertIsInstance(scene.name, str)
-        self.assertIsInstance(scene.id, str)
+        self.assertIsInstance(scene.uid, str)
 
         # Test frame ranges
         frame_range = scene.frame_range
@@ -86,7 +86,7 @@ class SBoardParserTest(TestCase):
 
         # Test name and id
         self.assertIsInstance(panel.name, str)
-        self.assertIsInstance(panel.id, str)
+        self.assertIsInstance(panel.uid, str)
 
         # Test scene
         self.assertIsInstance(panel.scene, sboardparser.parser.SBoardScene)
