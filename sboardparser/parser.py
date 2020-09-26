@@ -6,7 +6,6 @@ given sboard file path.
 
 
 import abc
-from collections import namedtuple
 from xml.etree import cElementTree
 
 
