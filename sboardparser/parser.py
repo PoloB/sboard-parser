@@ -17,9 +17,6 @@ def _get_timeline(scene_node):
                 if c.attrib['type'] == "0")
 
 
-SBoardFrameRange = namedtuple("SBoardFrameRange", "frame_in frame_out")
-
-
 class SboardNode(object):
 
     __metaclass__ = abc.ABCMeta
@@ -29,6 +26,7 @@ class SboardNode(object):
 
     @property
     def xml_node(self):
+        """Returns the root xml node for this given object."""
         return self.__xml_node
 
 
@@ -56,29 +54,53 @@ class SBoardPanel(SboardNode):
 
     @property
     def id(self):
+        """Returns the unique identifier of the panel.
+
+        Returns:
+            str
+        """
         return self.xml_node.attrib['id']
 
     @property
     def name(self):
+        """Returns the name of the panel.
+
+        Returns:
+            str
+        """
         return self.__get_info().attrib["name"]
 
     @property
     def scene(self):
+        """Returns the scene in which the panel belongs.
+
+        Returns:
+            SBoardScene
+        """
         return self.__scene
 
     @property
     def frame_range(self):
+        """Returns the frame range of the panel.
 
+        Returns:
+            tuple(int, int)
+        """
         timeline = _get_timeline(self.__scene.xml_node)
 
         warp_seq = next(ws for ws in timeline
                         if ws.attrib['id'] == self.id)
 
-        return SBoardFrameRange(int(warp_seq.attrib["start"]),
-                                int(warp_seq.attrib["end"]))
+        return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
     @property
     def cut_range(self):
+        """Returns the frame range of the panel relative to the scene.
+
+        Returns:
+            tuple(int, int)
+        """
+
         # Get the panel within the timeline of the scene
         timeline = _get_timeline(self.__scene.xml_node)
 
@@ -91,15 +113,15 @@ class SBoardPanel(SboardNode):
         assert 0 < len(ex_split) < 3
 
         if len(ex_split) == 1:
-            return SBoardFrameRange(int(exposure), int(exposure))
+            return int(exposure), int(exposure)
 
-        return SBoardFrameRange(int(ex_split[0]), int(ex_split[1]))
+        return int(ex_split[0]), int(ex_split[1])
 
 
 class SBoardScene(SboardNode):
     """A Storyboard Pro Scene has it is conceptually defined within StoryBoard
-     Pro. A scene is a collection of panels (see SBoardPanel) that can sit on
-     the M"""
+     Pro. A scene is a collection of panels (see SBoardPanel) which is then
+     placed on the project timeline."""
 
     def __init__(self, xml_node, project):
         super(SBoardScene, self).__init__(xml_node)
@@ -112,8 +134,8 @@ class SBoardScene(SboardNode):
 
         for meta in self.xml_node.find('metas').findall('meta'):
 
-            if meta.attrib['type'] != "sceneInfo":
-                continue
+            # if meta.attrib['type'] != "sceneInfo":
+            #     continue
 
             scene_info = meta.find('sceneInfo')
             break
@@ -123,14 +145,30 @@ class SBoardScene(SboardNode):
 
     @property
     def id(self):
+        """Returns the unique identifier of the scene.
+
+        Returns:
+            str
+        """
         return self.xml_node.attrib["id"]
 
     @property
     def name(self):
+        """Returns the name of the scene.
+
+        Returns:
+            str
+        """
         return self.__get_info().attrib["name"]
 
     @property
     def cut_range(self):
+        """Returns the cut range of the scene. This corresponds to the in
+        frame and out frame within the project timeline.
+
+        Returns:
+            tuple(int, int)
+        """
 
         scene_iter = self.__project.xml_node.find('scenes').findall('scene')
         top_node = next(scene for scene in scene_iter
@@ -146,12 +184,18 @@ class SBoardScene(SboardNode):
         assert 0 < len(ex_split) < 3
 
         if len(ex_split) == 1:
-            return SBoardFrameRange(int(exposure), int(exposure))
+            return int(exposure), int(exposure)
 
-        return SBoardFrameRange(int(ex_split[0]), int(ex_split[1]))
+        return int(ex_split[0]), int(ex_split[1])
 
     @property
     def frame_range(self):
+        """Returns the frame range of the scene. This is the window of the
+        scene used in the project timeline.
+
+        Returns:
+            tuple(int, int)
+        """
 
         scene_iter = self.__project.xml_node.find('scenes').findall('scene')
         top_node = next(scene for scene in scene_iter
@@ -161,12 +205,24 @@ class SBoardScene(SboardNode):
         warp_seq = next(ws for ws in timeline
                         if ws.attrib['id'] == self.id)
 
-        return SBoardFrameRange(int(warp_seq.attrib["start"]),
-                                int(warp_seq.attrib["end"]))
+        return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
+
+    @property
+    def length(self):
+        """Returns the number of frames of the scene.
+
+        Returns:
+            int
+        """
+        return int(self.xml_node.attrib["nbframes"])
 
     @property
     def panels(self):
+        """Returns a generator of panels within the scene.
 
+        Yields:
+            SBoardPanel
+        """
         scene_iter = self.__project.xml_node.find('scenes').findall('scene')
 
         all_panels_by_id = {panel.attrib['id']: panel
@@ -180,10 +236,6 @@ class SBoardScene(SboardNode):
 
             # Only get existing panels
             panel_id = warp_seq.attrib["id"]
-
-            if panel_id not in all_panels_by_id:
-                continue
-
             yield SBoardPanel(all_panels_by_id[panel_id], self)
 
 
