@@ -16,6 +16,21 @@ def _get_timeline(scene_node):
                 if c.attrib['type'] == "0")
 
 
+def _get_cut_range(timeline_node, uid):
+    warp_seq = next(ws for ws in timeline_node.findall("warpSeq")
+                    if ws.attrib['id'] == uid)
+
+    exposure = warp_seq.attrib["exposures"]
+    ex_split = exposure.split("-")
+
+    assert 0 < len(ex_split) < 3
+
+    if len(ex_split) == 1:
+        return int(exposure), int(exposure)
+
+    return int(ex_split[0]), int(ex_split[1])
+
+
 class _SBoardNode:
     """Abstract class for all Story Board Pro objects derived from a given
     xml node of the .sboard file."""
@@ -105,19 +120,7 @@ class SBoardPanel(_SBoardNode):
 
         # Get the panel within the timeline of the scene
         timeline = _get_timeline(self.__scene.xml_node)
-
-        warp_seq = next(ws for ws in timeline.findall("warpSeq")
-                        if ws.attrib['id'] == self.uid)
-
-        exposure = warp_seq.attrib["exposures"]
-        ex_split = exposure.split("-")
-
-        assert 0 < len(ex_split) < 3
-
-        if len(ex_split) == 1:
-            return int(exposure), int(exposure)
-
-        return int(ex_split[0]), int(ex_split[1])
+        return _get_cut_range(timeline, self.uid)
 
 
 class SBoardScene(_SBoardNode):
@@ -175,20 +178,10 @@ class SBoardScene(_SBoardNode):
         scene_iter = self.__project.xml_node.find('scenes').findall('scene')
         top_node = next(scene for scene in scene_iter
                         if scene.attrib['name'] == 'Top')
+
+        # Get the panel within the timeline of the scene
         timeline = _get_timeline(top_node)
-
-        warp_seq = next(ws for ws in timeline.findall("warpSeq")
-                        if ws.attrib['id'] == self.uid)
-
-        exposure = warp_seq.attrib["exposures"]
-        ex_split = exposure.split("-")
-
-        assert 0 < len(ex_split) < 3
-
-        if len(ex_split) == 1:
-            return int(exposure), int(exposure)
-
-        return int(ex_split[0]), int(ex_split[1])
+        return _get_cut_range(timeline, self.uid)
 
     @property
     def frame_range(self):
