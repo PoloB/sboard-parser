@@ -48,6 +48,8 @@ class SBoardParserTest(TestCase):
                               sboardparser.parser.SBoardProjectTimeline)
         self._test_timeline(project.timeline)
 
+        self.assertIsInstance(project.frame_rate, float)
+
     def _test_scene(self, scene):
 
         # Test name and id
