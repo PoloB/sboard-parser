@@ -27,7 +27,7 @@ class SBoardParserTest(TestCase):
         self._test_project(project)
 
     def test_02(self):
-        test_path = os.path.join(SAMPLE_DIRECTORY, "test_01.sboard")
+        test_path = os.path.join(SAMPLE_DIRECTORY, "test_02.sboard")
         project = sboardparser.parse(test_path)
         self._test_project(project)
 
@@ -42,6 +42,11 @@ class SBoardParserTest(TestCase):
 
             # Test scene
             self._test_scene(s)
+
+        # Test timeline
+        self.assertIsInstance(project.timeline,
+                              sboardparser.parser.SBoardProjectTimeline)
+        self._test_timeline(project.timeline)
 
     def _test_scene(self, scene):
 
@@ -101,3 +106,10 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(cut_range, tuple)
         self.assertIsInstance(cut_range[0], int)
         self.assertIsInstance(cut_range[1], int)
+
+    def _test_timeline(self, timeline):
+
+        self.assertIsInstance(timeline.uid, str)
+        self.assertIsInstance(timeline.length, int)
+        self.assertIsInstance(timeline.scenes, types.GeneratorType)
+        self.assertIsInstance(timeline.project, sboardparser.SBoardProject)

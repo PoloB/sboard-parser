@@ -234,6 +234,64 @@ class SBoardScene(_SBoardNode):
             yield SBoardPanel(all_panels_by_id[panel_id], self)
 
 
+class SBoardProjectTimeline(_SBoardNode):
+    """Represents the timeline of the project."""
+
+    def __init__(self, xml_node, project):
+        super().__init__(xml_node)
+        self.__project = project
+
+    @property
+    def length(self):
+        """Returns the number of frames in the timeline.
+
+        Returns:
+            int
+        """
+        return int(self.xml_node.attrib["nbframes"])
+
+    @property
+    def uid(self):
+        """Returns the unique identifier of the timeline.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["id"]
+
+    @property
+    def project(self):
+        """Returns the project of the timeline.
+
+        Returns:
+            SBoardProject
+        """
+        return self.__project
+
+    @property
+    def scenes(self):
+        """Returns a generator of the scene within the timeline.
+        The scenes are generated in the same order as they appear in the
+        timeline.
+
+        Yields:
+            SBoardScene
+        """
+
+        project_scenes_by_id = {s.uid: s for s in self.__project.scenes}
+
+        # Parse the warpSequences in the timeline node
+        warp_sequences = self.xml_node.findall("warpSeq")
+
+        for ws in warp_sequences:
+            scene = project_scenes_by_id.get(ws.attrib["id"], None)
+
+            if not scene:
+                continue
+
+            yield scene
+
+
 class SBoardProject(_SBoardNode):
     """A StoryBoard Pro project abstraction built usually from a .sboard file
     (see from_file class method). It basically wraps the xml content of the
@@ -260,3 +318,26 @@ class SBoardProject(_SBoardNode):
 
             if "shot" in scene.attrib['name']:
                 yield SBoardScene(scene, self)
+
+    @property
+    def timeline(self):
+        """Returns the SBoardTimeline of the project.
+
+        Returns:
+            SBoardProjectTimeline
+        """
+        # Get the number of frames in the top node
+        scene_iter = self.xml_node.find('scenes').findall('scene')
+        top_node = next(scene for scene in scene_iter
+                        if scene.attrib['name'] == 'Top')
+        return SBoardProjectTimeline(top_node, self)
+
+    @property
+    def frame_rate(self):
+        """Returns the frame rate of the project
+
+        Returns:
+            float
+        """
+        options = self.xml_node.find('options')
+        return float(options.find('framerate').attrib['val'])
