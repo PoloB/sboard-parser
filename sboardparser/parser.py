@@ -16,7 +16,7 @@ def _get_timeline(scene_node):
                 if c.attrib['type'] == "0")
 
 
-def _get_cut_range(timeline_node, uid):
+def _get_timeline_range(timeline_node, uid):
     warp_seq = next(ws for ws in timeline_node.findall("warpSeq")
                     if ws.attrib['id'] == uid)
 
@@ -109,7 +109,16 @@ class SBoardPanel(_SBoardNode):
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
     @property
-    def cut_range(self):
+    def length(self):
+        """Returns the number of frames of the panel.
+
+        Returns:
+            int
+        """
+        return int(self.xml_node.attrib["nbframes"])
+
+    @property
+    def scene_range(self):
         """Returns the frame range of the panel relative to the scene.
 
         Returns:
@@ -118,7 +127,21 @@ class SBoardPanel(_SBoardNode):
 
         # Get the panel within the timeline of the scene
         timeline = _get_timeline(self.__scene.xml_node)
-        return _get_cut_range(timeline, self.uid)
+        return _get_timeline_range(timeline, self.uid)
+
+    @property
+    def timeline_range(self):
+        """Returns the range within the global timeline.
+
+        Returns:
+            tuple(int, int)
+        """
+        # Get the timeline range of the scene
+        scene_timeline_range = self.scene.timeline_range
+
+        start = scene_timeline_range[0] + self.scene_range[0]
+        end = start + self.length
+        return start, end
 
 
 class SBoardScene(_SBoardNode):
@@ -165,9 +188,8 @@ class SBoardScene(_SBoardNode):
         return self.__get_info().attrib["name"]
 
     @property
-    def cut_range(self):
-        """Returns the cut range of the scene. This corresponds to the in
-        frame and out frame within the project timeline.
+    def timeline_range(self):
+        """Returns the range of the scene within the project timeline.
 
         Returns:
             tuple(int, int)
@@ -179,7 +201,7 @@ class SBoardScene(_SBoardNode):
 
         # Get the panel within the timeline of the scene
         timeline = _get_timeline(top_node)
-        return _get_cut_range(timeline, self.uid)
+        return _get_timeline_range(timeline, self.uid)
 
     @property
     def frame_range(self):
@@ -306,6 +328,21 @@ class SBoardProjectTimeline(_SBoardNode):
             assert scene is not None
 
             yield scene
+
+    @property
+    def panels(self):
+        """Returns a generator of the panels within the timeline.
+        The panels are generated in the same order as they appear in the
+        timeline.
+
+        Yields:
+            SBoardPanel
+        """
+        for scene in self.scenes:
+
+            # We already get panels in order, just yield them
+            for p in scene.panels:
+                yield p
 
 
 class SBoardSequence(object):
