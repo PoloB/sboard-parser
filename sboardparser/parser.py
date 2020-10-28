@@ -23,8 +23,6 @@ def _get_cut_range(timeline_node, uid):
     exposure = warp_seq.attrib["exposures"]
     ex_split = exposure.split("-")
 
-    assert 0 < len(ex_split) < 3
-
     if len(ex_split) == 1:
         return int(exposure), int(exposure)
 
@@ -50,7 +48,7 @@ class SBoardPanel(_SBoardNode):
     """Representation of a Story Board Pro Panel."""
 
     def __init__(self, xml_node, scene):
-        super().__init__(xml_node)
+        super(SBoardPanel, self).__init__(xml_node)
         self.__scene = scene  # /project/scenes/scene
 
     def __get_info(self):
@@ -129,7 +127,7 @@ class SBoardScene(_SBoardNode):
      placed on the project timeline."""
 
     def __init__(self, xml_node, project):
-        super().__init__(xml_node)
+        super(SBoardScene, self).__init__(xml_node)
         self.__project = project  # /project
 
     def __get_info(self):
@@ -233,12 +231,31 @@ class SBoardScene(_SBoardNode):
             panel_id = warp_seq.attrib["id"]
             yield SBoardPanel(all_panels_by_id[panel_id], self)
 
+    @property
+    def sequence(self):
+        """Returns the sequence the scene belongs to or None if there is no
+        sequence.
+
+        Returns:
+            SBoardSequence or None
+        """
+
+        # Check the meta data of the scene
+        for meta in self.xml_node.find("metas").findall("meta"):
+
+            seq_name = next(meta.iter("sceneInfo")).attrib["sequenceName"]
+
+            if not seq_name:
+                return None
+
+            return SBoardSequence(self.__project, seq_name)
+
 
 class SBoardProjectTimeline(_SBoardNode):
     """Represents the timeline of the project."""
 
     def __init__(self, xml_node, project):
-        super().__init__(xml_node)
+        super(SBoardProjectTimeline, self).__init__(xml_node)
         self.__project = project
 
     @property
@@ -281,15 +298,53 @@ class SBoardProjectTimeline(_SBoardNode):
         project_scenes_by_id = {s.uid: s for s in self.__project.scenes}
 
         # Parse the warpSequences in the timeline node
-        warp_sequences = self.xml_node.findall("warpSeq")
+        warp_sequences = self.xml_node.iter("warpSeq")
 
-        for ws in warp_sequences:
-            scene = project_scenes_by_id.get(ws.attrib["id"], None)
+        for warp_seq in warp_sequences:
+            scene = project_scenes_by_id.get(warp_seq.attrib["id"], None)
 
-            if not scene:
-                continue
+            assert scene is not None
 
             yield scene
+
+
+class SBoardSequence(object):
+    """A Storyboard sequence. A sequence contains one or more scenes."""
+
+    def __init__(self, project, sequence_name):
+        self.__project = project
+        self.__sequence_name = sequence_name
+
+    @property
+    def project(self):
+        """Returns the project of this scene.
+
+        Returns:
+            SBoardProject
+        """
+        return self.__project
+
+    @property
+    def name(self):
+        """Returns the name of the sequence.
+
+        Returns:
+            int
+        """
+        return self.__sequence_name
+
+    @property
+    def scenes(self):
+        """Generator of all the scenes within the sequence.
+
+        Yields:
+            SBoardScene
+        """
+
+        for scene in self.__project.scenes:
+
+            if scene.sequence.name == self.name:
+                yield scene
 
 
 class SBoardProject(_SBoardNode):
@@ -306,6 +361,35 @@ class SBoardProject(_SBoardNode):
             SBoardProject
         """
         return cls(cElementTree.parse(sboard_path))
+
+    @property
+    def sequences(self):
+        """Generator of the sequences in the project.
+
+        Yields:
+            SBoardSequence
+        """
+        # Check that there are sequences
+        for meta in self.xml_node.find("metas").findall("meta"):
+
+            if meta.attrib["name"] != "sequenceExists":
+                continue
+
+            if meta.find("bool").attrib["value"] != "true":
+                return
+
+        # Get all the sequences
+        sequence_names = set([])
+
+        for scene in self.scenes:
+            seq = scene.sequence
+            seq_name = seq.name
+
+            if seq_name in sequence_names:
+                continue
+
+            sequence_names.add(seq_name)
+            yield seq
 
     @property
     def scenes(self):

@@ -31,6 +31,11 @@ class SBoardParserTest(TestCase):
         project = sboardparser.parse(test_path)
         self._test_project(project)
 
+    def test_03(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "test_03.sboard")
+        project = sboardparser.parse(test_path)
+        self._test_project(project)
+
     def _test_project(self, project):
 
         # Try to get the scenes from project
@@ -43,12 +48,29 @@ class SBoardParserTest(TestCase):
             # Test scene
             self._test_scene(s)
 
+        sequence_gen = project.sequences
+        self.assertIsInstance(sequence_gen, types.GeneratorType)
+
+        for sq in sequence_gen:
+            self.assertIsInstance(sq, sboardparser.parser.SBoardSequence)
+            self._test_sequence(sq)
+
         # Test timeline
         self.assertIsInstance(project.timeline,
                               sboardparser.parser.SBoardProjectTimeline)
         self._test_timeline(project.timeline)
 
         self.assertIsInstance(project.frame_rate, float)
+
+    def _test_sequence(self, sequence):
+
+        self.assertIsInstance(sequence.name, str)
+        self.assertIsInstance(sequence.project,
+                              sboardparser.parser.SBoardProject)
+
+        for scene in sequence.scenes:
+            self.assertIsInstance(scene, sboardparser.parser.SBoardScene)
+            self._test_scene(scene)
 
     def _test_scene(self, scene):
 
@@ -69,6 +91,10 @@ class SBoardParserTest(TestCase):
 
         # Test length
         self.assertIsInstance(scene.length, int)
+
+        # Test sequence
+        self.assertIsInstance(scene.sequence,
+                              (type(None), sboardparser.parser.SBoardSequence))
 
         # Test panels
         panels_gen = scene.panels
@@ -114,4 +140,11 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(timeline.uid, str)
         self.assertIsInstance(timeline.length, int)
         self.assertIsInstance(timeline.scenes, types.GeneratorType)
+
+        scenes = list(timeline.scenes)
+        self.assertGreaterEqual(len(scenes), 1)
+
+        for s in timeline.scenes:
+            self.assertIsInstance(s, sboardparser.parser.SBoardScene)
+
         self.assertIsInstance(timeline.project, sboardparser.SBoardProject)
