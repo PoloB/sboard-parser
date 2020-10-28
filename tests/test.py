@@ -117,7 +117,7 @@ class SBoardParserTest(TestCase):
     def _test_panel(self, panel):
 
         # Test name and id
-        self.assertIsInstance(panel.name, str)
+        self.assertIsInstance(panel.number, int)
         self.assertIsInstance(panel.uid, str)
 
         # Test scene

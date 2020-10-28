@@ -51,22 +51,6 @@ class SBoardPanel(_SBoardNode):
         super(SBoardPanel, self).__init__(xml_node)
         self.__scene = scene  # /project/scenes/scene
 
-    def __get_info(self):
-        """Returns the scene node info from from the node metadata"""
-        # Get the scene info metadata
-        panel_info = None
-
-        for meta in self.xml_node.find('metas').findall('meta'):
-
-            if meta.attrib['type'] != "panelInfo":
-                continue
-
-            panel_info = meta.find('panelInfo')
-            break
-
-        assert panel_info is not None, "No panel info found"
-        return panel_info
-
     @property
     def uid(self):
         """Returns the unique identifier of the panel.
@@ -77,13 +61,16 @@ class SBoardPanel(_SBoardNode):
         return self.xml_node.attrib['id']
 
     @property
-    def name(self):
-        """Returns the name of the panel.
+    def number(self):
+        """Returns the number of the panel.
 
         Returns:
             str
         """
-        return self.__get_info().attrib["name"]
+
+        for k, panel in enumerate(self.__scene.panels):
+            if panel.uid == self.uid:
+                return k + 1
 
     @property
     def scene(self):
