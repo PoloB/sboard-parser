@@ -36,6 +36,11 @@ class SBoardParserTest(TestCase):
         project = sboardparser.parse(test_path)
         self._test_project(project)
 
+    def test_04(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "test_04.sboard")
+        project = sboardparser.parse(test_path)
+        self._test_project(project)
+
     def _test_project(self, project):
 
         # Try to get the scenes from project
@@ -59,6 +64,14 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(project.timeline,
                               sboardparser.parser.SBoardProjectTimeline)
         self._test_timeline(project.timeline)
+
+        # Test elements
+        elements_gen = project.elements
+        self.assertIsInstance(elements_gen, types.GeneratorType)
+
+        for element in elements_gen:
+            self.assertIsInstance(element, sboardparser.parser.SBoardElement)
+            self._test_element(element)
 
         self.assertIsInstance(project.frame_rate, float)
 
@@ -123,6 +136,9 @@ class SBoardParserTest(TestCase):
         # Test scene
         self.assertIsInstance(panel.scene, sboardparser.parser.SBoardScene)
 
+        # Test project
+        self.assertIsInstance(panel.project, sboardparser.parser.SBoardProject)
+
         # Test frame range
         frame_range = panel.frame_range
         self.assertIsInstance(frame_range, tuple)
@@ -138,6 +154,22 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(timeline_range, tuple)
         self.assertIsInstance(timeline_range[0], int)
         self.assertIsInstance(timeline_range[1], int)
+
+        # Test layers without groups
+        layers_gen = panel.layer_iter()
+        self.assertIsInstance(layers_gen, types.GeneratorType)
+
+        for layer in layers_gen:
+            self.assertIsInstance(layer, sboardparser.parser.SBoardLayer)
+            self.assertFalse(layer.is_group())
+            self._test_layer(layer)
+
+        # Test all layers iter
+        for layer in panel.layer_iter(groups=True, recursive=True):
+            self.assertIsInstance(layer, sboardparser.parser.SBoardLayer)
+
+            if not layer.is_group():
+                self._test_layer_leaf(layer)
 
     def _test_timeline(self, timeline):
 
@@ -165,3 +197,30 @@ class SBoardParserTest(TestCase):
             current_panel_start = p.timeline_range[0]
 
         self.assertIsInstance(timeline.project, sboardparser.SBoardProject)
+
+    def _test_element(self, element):
+
+        self.assertIsInstance(element.uid, str)
+        self.assertIsInstance(element.type, str)
+
+        drawings_gen = element.drawings
+        self.assertIsInstance(drawings_gen, types.GeneratorType)
+
+        for drawing in drawings_gen:
+            self.assertIsInstance(drawing, sboardparser.parser.SBoardDrawing)
+            self._test_drawing(drawing)
+
+    def _test_layer(self, layer):
+
+        self.assertIsInstance(layer.name, str)
+        self.assertIsInstance(layer.element, sboardparser.parser.SBoardElement)
+        self.assertIsInstance(layer.panel, sboardparser.parser.SBoardPanel)
+
+    def _test_drawing(self, drawing):
+
+        self.assertIsInstance(drawing.name, str)
+        self.assertIsInstance(drawing.scale_factor, float)
+
+    def _test_layer_leaf(self, layer):
+
+        self.assertEqual(0, len(list(layer.layer_iter())))
