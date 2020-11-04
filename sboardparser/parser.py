@@ -635,3 +635,13 @@ class SBoardProject(_SBoardNode):
             float
         """
         return float(self.xml_node.find('./options/framerate').attrib['val'])
+
+    @property
+    def title(self):
+        """Returns the title of the project.
+
+        Returns:
+            str
+        """
+        node = self.xml_node.find("./metas/meta[@name='projectTitle']/string")
+        return node.attrib['value']

@@ -74,6 +74,7 @@ class SBoardParserTest(TestCase):
             self._test_element(element)
 
         self.assertIsInstance(project.frame_rate, float)
+        self.assertIsInstance(project.title, str)
 
     def _test_sequence(self, sequence):
 
