@@ -5,10 +5,14 @@ given sboard file path.
 """
 
 import abc
+import os
 from xml.etree import cElementTree
 
 
 def _get_timeline(scene_node):
+
+    assert scene_node.attrib["name"] != "Top"
+
     # Shot timeline is described in the column with type=0
     columns = scene_node.find('columns')
     return next(c for c in columns.findall("column")
@@ -16,7 +20,7 @@ def _get_timeline(scene_node):
 
 
 def _get_timeline_range(timeline_node, uid):
-    warp_seq = next(ws for ws in timeline_node.findall("warpSeq")
+    warp_seq = next(ws for ws in timeline_node.iter("warpSeq")
                     if ws.attrib['id'] == uid)
 
     exposure = warp_seq.attrib["exposures"]
@@ -47,11 +51,269 @@ class _SBoardNode:
         return self.__xml_node
 
 
+class SBoardAudioClip(_SBoardNode):
+
+    def __init__(self, xml_node, track):
+        # /projects/scenes/scene[@name='Top']/columns/column[@type='1']/soundSequence
+        super().__init__(xml_node)
+        self.__track = track
+
+    @property
+    def file_name(self):
+        """Returns the file name of the media of this clip.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["name"]
+
+    @property
+    def path(self):
+        """Returns the full path of the file used relative to the .sboard file.
+
+        Returns:
+            str
+        """
+        return "./audio/{}".format(self.file_name)
+
+    @property
+    def clip_range(self):
+        """Returns the clip range of the audio track in seconds.
+
+        Returns:
+            tuple(float, float): start, end
+        """
+        return float(self.xml_node.attrib["clippingTimeStart"]), \
+            float(self.xml_node.attrib["clippingTimeStop"])
+
+    @property
+    def timeline_range(self):
+        """Returns the timeline range of the audio track.
+
+        Returns:
+            tuple(int, int): start, end
+        """
+        return int(self.xml_node.attrib["startFrame"]), \
+            int(self.xml_node.attrib["stopFrame"])
+
+    @property
+    def length(self):
+        """Returns the number of frames of the clip.
+
+        Returns:
+            int
+        """
+        timeline_range = self.timeline_range
+        return timeline_range[1] - timeline_range[0]
+
+    @property
+    def track(self):
+        """Returns the track of the clip.
+
+        Returns:
+            SBoardAudioTrack
+        """
+        return self.__track
+
+
+class SBoardVideoClip(_SBoardNode):
+    """A Storyboard Pro Video Clip."""
+
+    def __init__(self, xml_node, track):
+        # /project/scenes/scene
+        super(SBoardVideoClip, self).__init__(xml_node)
+        self.__track = track
+
+    @property
+    def track(self):
+        """Returns the track of the clip.
+
+        Returns:
+            SBoardVideoTrack
+        """
+        return self.__track
+
+    @property
+    def uid(self):
+        """Returns the unique identifier of the scene.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["id"]
+
+    @property
+    def timeline_range(self):
+        """Returns the range of the scene within the project timeline.
+
+        Returns:
+            tuple(int, int)
+        """
+        project = self.__track.timeline.project
+        top_node = project.xml_node.find("./scenes/scene[@name='Top']")
+
+        return _get_timeline_range(top_node, self.uid)
+
+    @property
+    def clip_range(self):
+        """Returns the frame range of the scene. This is the window of the
+        scene used in the project timeline.
+
+        Returns:
+            tuple(int, int)
+        """
+
+        project = self.__track.timeline.project
+        top_node = project.xml_node.find("./scenes/scene[@name='Top']")
+
+        warp_sequences = top_node.iter("warpSeq")
+
+        warp_seq = next(ws for ws in warp_sequences
+                        if ws.attrib['id'] == self.uid)
+
+        return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
+
+    @property
+    def length(self):
+        """Returns the number of frames of the clip.
+
+        Returns:
+            int
+        """
+        return int(self.xml_node.attrib["nbframes"])
+
+    @property
+    def path(self):
+        """Returns the full path of the clip file used relative to the
+         .sboard file.
+
+        Returns:
+            str
+        """
+        return self.element.path
+
+    @property
+    def element(self):
+        """Returns the path to the video clip.
+
+        Returns:
+            SBoardLibraryElement
+        """
+        # Get the movieSeqExp or elementSeq node
+        mov = self.xml_node.find("./columns/column[@type='0']")
+        mov = next(m for m in mov)
+
+        # Get in /projects/elements/ and find the element matching the mov
+        project = self.__track.timeline.project
+
+        cat_id = mov.attrib['id']
+        element_name = mov.attrib['val']
+
+        # Get the element in the library
+        cat = next(cat for cat in project.library.categories
+                   if cat.uid == cat_id)
+
+        return next(element for element in cat.elements
+                    if element.name == element_name)
+
+
+class SBoardAudioTrack(_SBoardNode):
+
+    def __init__(self, xml_node, timeline):
+        # /projects/scenes/scene[@name='Top']/columns/column[@type='1']
+        super().__init__(xml_node)
+        self.__timeline = timeline
+
+    @property
+    def name(self):
+        """Returns the name of the audio track.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["name"]
+
+    @property
+    def clips(self):
+        """Generator f all the clips in the track.
+
+        Yields:
+            SBoardAudioClip
+        """
+        return (SBoardAudioClip(node, self)
+                for node in self.xml_node.findall("./soundSequence"))
+
+    @property
+    def timeline(self):
+        """Returns the timeline of the track.
+
+        Returns:
+            SBoardProjectTimeline
+        """
+        return self.__timeline
+
+
+class SBoardVideoTrack(_SBoardNode):
+
+    def __init__(self, xml_node, timeline):
+        # /projects/scenes/scene[@name=Top]/rootgroup/nodelist/module
+        super().__init__(xml_node)
+        self.__timeline = timeline
+
+    @property
+    def uid(self):
+        """Returns the unied identifier of the video track.
+
+        Returns:
+            str
+        """
+        return self.xml_node.find("./attrs/drawing/element").attrib["col"]
+
+    @property
+    def name(self):
+        """Returns the name of the video track.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["name"]
+
+    @property
+    def clips(self):
+        """Generator of all the clips in the track.
+        The clips are generated in the same order as they appear in the track.
+
+        Yields:
+            SBoardVideoClip
+        """
+        column = self.__timeline.xml_node.find("./columns/column[@name='{}']"
+                                               "".format(self.uid))
+        uids = [node.attrib['id'] for node in column.findall("./warpSeq")]
+
+        # Get all the clips
+        video_clips = self.__timeline.project.xml_node.findall("./scenes/scene")
+
+        video_clips = {video_clip.attrib['id']: video_clip
+                       for video_clip in video_clips
+                       if video_clip.attrib['id'] in uids}
+
+        return (SBoardVideoClip(video_clips[uid], self) for uid in uids)
+
+    @property
+    def timeline(self):
+        """Returns the timeline of the track.
+
+        Returns:
+            SBoardProjectTimeline
+        """
+        return self.__timeline
+
+
 class SBoardLayer(_SBoardNode):
     """A layer group"""
 
     def __init__(self, xml_node, panel):
-        # /projects/scenes/scene/rootgroup/nodeslist/module
+        # /projects/scenes/scene[@name='panel']/rootgroup/nodeslist/module
         super(SBoardLayer, self).__init__(xml_node)
         self.__panel = panel
 
@@ -75,21 +337,32 @@ class SBoardLayer(_SBoardNode):
 
     @property
     def element(self):
-        """Returns the element for this layer.
+        """Returns the library element for this layer or None if the layer has
+        no element.
 
         Returns:
-            SBoardElement
+            SBoardLibraryElement or None
         """
-
         draw_node = self.xml_node.find('./attrs/drawing/element')
         column_name = draw_node.attrib['col']
 
-        column_node = self.__panel.xml_node.find("./columns/column[@name='{}']"
-                                                 "".format(column_name))
-        element_id = column_node.attrib['id']
+        column_node = self.__panel.xml_node.find(
+            "./columns/column[@name='{}']/elementSeq".format(column_name))
 
-        return next(element for element in self.__panel.project.elements
-                    if element.uid == element_id)
+        if column_node is None:
+            return None
+
+        element_cat_id = column_node.attrib['id']
+        element_name = column_node.attrib['val']
+
+        # Get the library category
+        project = self.__panel.project
+        cat = next(cat for cat in project.library.categories
+                   if cat.uid == element_cat_id)
+
+        # Get the element in the category
+        return next(element for element in cat.elements
+                    if element.name == element_name)
 
     def layer_iter(self, groups=False, recursive=False):
         """Generator of all the sub layers contained in the layer.
@@ -101,7 +374,6 @@ class SBoardLayer(_SBoardNode):
         Yields:
             SBoardLayer
         """
-
         if self.xml_node.attrib['type'] == "READ":
             return
 
@@ -141,6 +413,7 @@ class SBoardPanel(_SBoardNode):
     """Representation of a Story Board Pro Panel."""
 
     def __init__(self, xml_node, scene):
+        # /projects/elements/scene
         super(SBoardPanel, self).__init__(xml_node)
         self.__scene = scene  # /project/scenes/scene
 
@@ -183,7 +456,7 @@ class SBoardPanel(_SBoardNode):
         return self.__scene
 
     @property
-    def frame_range(self):
+    def clip_range(self):
         """Returns the frame range of the panel.
 
         Returns:
@@ -240,7 +513,6 @@ class SBoardPanel(_SBoardNode):
         Yields:
             SBoardLayer
         """
-
         for module in self.xml_node.findall("./rootgroup/nodeslist/module"):
 
             layer = SBoardLayer(module, self)
@@ -270,7 +542,6 @@ class SBoardScene(_SBoardNode):
 
     def __get_info(self):
         """Returns the scene node info from from the node metadata"""
-
         scene_info = self.xml_node.find('./metas/meta/sceneInfo')
 
         assert scene_info is not None, "No scene info found"
@@ -310,26 +581,22 @@ class SBoardScene(_SBoardNode):
         Returns:
             tuple(int, int)
         """
-
         top_node = self.__project.xml_node.find("./scenes/scene[@name='Top']")
-
-        # Get the panel within the timeline of the scene
-        timeline = _get_timeline(top_node)
-        return _get_timeline_range(timeline, self.uid)
+        return _get_timeline_range(top_node, self.uid)
 
     @property
-    def frame_range(self):
+    def clip_range(self):
         """Returns the frame range of the scene. This is the window of the
         scene used in the project timeline.
 
         Returns:
             tuple(int, int)
         """
-
         top_node = self.__project.xml_node.find("./scenes/scene[@name='Top']")
-        timeline = _get_timeline(top_node)
 
-        warp_seq = next(ws for ws in timeline
+        warp_sequences = top_node.iter("warpSeq")
+
+        warp_seq = next(ws for ws in warp_sequences
                         if ws.attrib['id'] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
@@ -372,81 +639,8 @@ class SBoardScene(_SBoardNode):
         Returns:
             SBoardSequence or None
         """
-
         scene_info = self.xml_node.find('./metas/meta/sceneInfo')
         return SBoardSequence(self.__project, scene_info.attrib['sequenceName'])
-
-
-class SBoardProjectTimeline(_SBoardNode):
-    """Represents the timeline of the project."""
-
-    def __init__(self, xml_node, project):
-        super(SBoardProjectTimeline, self).__init__(xml_node)
-        self.__project = project
-
-    @property
-    def length(self):
-        """Returns the number of frames in the timeline.
-
-        Returns:
-            int
-        """
-        return int(self.xml_node.attrib["nbframes"])
-
-    @property
-    def uid(self):
-        """Returns the unique identifier of the timeline.
-
-        Returns:
-            str
-        """
-        return self.xml_node.attrib["id"]
-
-    @property
-    def project(self):
-        """Returns the project of the timeline.
-
-        Returns:
-            SBoardProject
-        """
-        return self.__project
-
-    @property
-    def scenes(self):
-        """Returns a generator of the scene within the timeline.
-        The scenes are generated in the same order as they appear in the
-        timeline.
-
-        Yields:
-            SBoardScene
-        """
-
-        project_scenes_by_id = {s.uid: s for s in self.__project.scenes}
-
-        # Parse the warpSequences in the timeline node
-        warp_sequences = self.xml_node.iter("warpSeq")
-
-        for warp_seq in warp_sequences:
-            scene = project_scenes_by_id.get(warp_seq.attrib["id"], None)
-
-            assert scene is not None
-
-            yield scene
-
-    @property
-    def panels(self):
-        """Returns a generator of the panels within the timeline.
-        The panels are generated in the same order as they appear in the
-        timeline.
-
-        Yields:
-            SBoardPanel
-        """
-        for scene in self.scenes:
-
-            # We already get panels in order, just yield them
-            for panel in scene.panels:
-                yield panel
 
 
 class SBoardSequence(object):
@@ -488,16 +682,125 @@ class SBoardSequence(object):
                 yield scene
 
 
-class SBoardDrawing(_SBoardNode):
-    """A piece of drawing"""
+class SBoardTimeline(_SBoardNode):
+    """Represents the timeline of the project."""
 
-    def __init__(self, xml_node, element):
-        super(SBoardDrawing, self).__init__(xml_node)
-        self.__element = element
+    def __init__(self, xml_node, project):
+        # /projects/scenes/scene[@name='Top']
+        super(SBoardTimeline, self).__init__(xml_node)
+        self.__project = project
+
+    @property
+    def length(self):
+        """Returns the number of frames in the timeline.
+
+        Returns:
+            int
+        """
+        return int(self.xml_node.attrib["nbframes"])
+
+    @property
+    def uid(self):
+        """Returns the unique identifier of the timeline.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["id"]
+
+    @property
+    def project(self):
+        """Returns the project of the timeline.
+
+        Returns:
+            SBoardProject
+        """
+        return self.__project
+
+    @property
+    def audio_tracks(self):
+        """Generator of all the tracks of the timeline.
+        Audio Tracks are generated in the same order as they appear in the
+        Storyboard Pro project.
+
+        Yields:
+            SBoardAudioTrack
+        """
+        audio_tracks = self.xml_node.findall("./columns/column[@type='1']")
+        return (SBoardAudioTrack(node, self) for node in audio_tracks)
+
+    @property
+    def video_tracks(self):
+        """Generator of all the video tracks in the the timeline.
+
+        Yields:
+            SBoardVideoTrack
+        """
+        # To get video tracks, we must  find the module which is not TopLayer
+        # ./rootgroup/nodeslist
+        modules = self.xml_node.findall("./rootgroup/nodeslist/module")
+
+        return (SBoardVideoTrack(module, self) for module in modules
+                if module.attrib["name"] != "TopLayer")
+
+    @property
+    def scenes(self):
+        """Returns a generator of the scene within the timeline.
+        The scenes are generated in the same order as they appear in the
+        timeline.
+
+        Yields:
+            SBoardScene
+        """
+        project_scenes_by_id = {s.uid: s for s in self.__project.scenes}
+
+        # Parse the warpSequences in the timeline node
+        warp_sequences = self.xml_node.iter("warpSeq")
+
+        for warp_seq in warp_sequences:
+            scene = project_scenes_by_id.get(warp_seq.attrib["id"], None)
+
+            assert scene is not None
+
+            yield scene
+
+    @property
+    def panels(self):
+        """Returns a generator of the panels within the timeline.
+        The panels are generated in the same order as they appear in the
+        timeline.
+
+        Yields:
+            SBoardPanel
+        """
+        for scene in self.scenes:
+
+            # We already get panels in order, just yield them
+            for panel in scene.panels:
+                yield panel
+
+
+class SBoardLibraryElement(_SBoardNode):
+    """Storyboard Pro library element. Represents a file used within the project
+    """
+
+    def __init__(self, xml_node, category):
+        # /projects/elements/element/drawings/dwg
+        super().__init__(xml_node)
+        self.__category = category
+
+    @property
+    def category(self):
+        """Returns the SBoardLibraryCategory of this element.
+
+        Returns:
+            SBoardLibraryCategory
+        """
+        return self.__category
 
     @property
     def name(self):
-        """Returns the name of the drawing.
+        """Returns the name of the element.
 
         Returns:
             str
@@ -505,25 +808,38 @@ class SBoardDrawing(_SBoardNode):
         return self.xml_node.attrib['name']
 
     @property
-    def scale_factor(self):
-        """Returns the scale factor of the drawing.
+    def path(self):
+        """Returns the path of the file relative to the project .sboard file.
 
         Returns:
-            float
+            str
         """
-        return float(self.xml_node.attrib['scaleFactor'])
+        file_name = "{}.{}".format(self.name, self.__category.extension)
+        return os.path.join(".", self.__category.root_folder,
+                            self.__category.folder, file_name)
 
 
-class SBoardElement(_SBoardNode):
-    """A Storyboard element"""
+class SBoardLibraryCategory(_SBoardNode):
+    """A category of files in the library"""
 
-    def __init__(self, xml_node, project):
-        super(SBoardElement, self).__init__(xml_node)
-        self.__project = project
+    # If lower names are in this dict, the associated extension is used.
+    # Otherwise, the name of the category is used
+    EXTENSION_BY_LOW_NAME = {
+        "draw": "tvg",
+        "fbxmodels": "fbx",
+        "abcmodels": "abc",
+    }
+
+    def __init__(self, xml_node, library):
+        # /projects/elements/element
+        super().__init__(xml_node)
+        self.__library = library
 
     @property
     def uid(self):
-        """Returns the unique identifier of the board element.
+        """Returns the unique identifier of the library category.
+        This id may vary across project. Do not rely on this id to compare
+        categories between different projects.
 
         Returns:
             str
@@ -531,8 +847,10 @@ class SBoardElement(_SBoardNode):
         return self.xml_node.attrib['id']
 
     @property
-    def type(self):
-        """Returns the type of element.
+    def name(self):
+        """Returns the name of the library category.
+        This name may vary across project. Do not rely on this name to compare
+        categories between different projects.
 
         Returns:
             str
@@ -540,14 +858,82 @@ class SBoardElement(_SBoardNode):
         return self.xml_node.attrib['elementName']
 
     @property
-    def drawings(self):
-        """Generator of drawings that constitute the element.
+    def root_folder(self):
+        """Returns the root folder of the library category.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib['rootFolder']
+
+    @property
+    def folder(self):
+        """Returns the folder of the library category.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib['elementFolder']
+
+    @property
+    def extension(self):
+        """Returns the extension for this category.
+
+        Returns:
+            str
+        """
+        return self.EXTENSION_BY_LOW_NAME.get(self.name, self.name)
+
+    @property
+    def elements(self):
+        """Generator of all the elements for this category.
 
         Yields:
-            SBoardDrawing
+            SBoardLibraryElement
         """
-        for drawing in self.xml_node.iter("dwg"):
-            yield SBoardDrawing(drawing, self)
+        for node in self.xml_node.findall("./drawings/dwg"):
+            yield SBoardLibraryElement(node, self)
+
+
+class SBoardLibrary(_SBoardNode):
+    """Storyboard Pro library that stores all the references to the files
+    used in the project. Note that audio files are not stored in the library
+    folder."""
+
+    def __init__(self, xml_node, project):
+        # /projects/elements
+        super().__init__(xml_node)
+        self.__project = project
+
+    @property
+    def project(self):
+        """Returns the project of the library
+
+        Returns:
+            SBoardProject
+        """
+        return self.__project
+
+    @property
+    def categories(self):
+        """Generator of all the categories in the library.
+
+        Yields:
+            SBoardLibraryCategory
+        """
+        for node in self.xml_node.findall("./element"):
+            yield SBoardLibraryCategory(node, self)
+
+    @property
+    def elements(self):
+        """Generator of all the elements in the library.
+
+        Yields:
+            SBoardLibraryElement
+        """
+        for cat in self.categories:
+            for element in cat.elements:
+                yield element
 
 
 class SBoardProject(_SBoardNode):
@@ -607,16 +993,6 @@ class SBoardProject(_SBoardNode):
             yield SBoardScene(scene, self)
 
     @property
-    def elements(self):
-        """Generator of all elements in the project.
-
-        Yields:
-            SBoardElement
-        """
-        for element in self.xml_node.findall("./elements/element"):
-            yield SBoardElement(element, self)
-
-    @property
     def timeline(self):
         """Returns the SBoardTimeline of the project.
 
@@ -625,7 +1001,7 @@ class SBoardProject(_SBoardNode):
         """
         # Get the number of frames in the top node
         top_node = self.xml_node.find("./scenes/scene[@name='Top']")
-        return SBoardProjectTimeline(top_node, self)
+        return SBoardTimeline(top_node, self)
 
     @property
     def frame_rate(self):
@@ -645,3 +1021,12 @@ class SBoardProject(_SBoardNode):
         """
         node = self.xml_node.find("./metas/meta[@name='projectTitle']/string")
         return node.attrib['value']
+
+    @property
+    def library(self):
+        """Returns the library of the project.
+
+        Returns:
+            SBoardLibrary
+        """
+        return SBoardLibrary(self.xml_node.find("elements"), self)
