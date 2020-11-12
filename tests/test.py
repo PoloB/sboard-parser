@@ -245,6 +245,7 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(track.name, str)
         self.assertIsInstance(track.timeline,
                               sboardparser.parser.SBoardTimeline)
+        self.assertIsInstance(track.is_enabled(), bool)
         clips = track.clips
         self.assertIsInstance(clips, types.GeneratorType)
 
@@ -256,6 +257,7 @@ class SBoardParserTest(TestCase):
         self.assertIsInstance(track.name, str)
         self.assertIsInstance(track.timeline,
                               sboardparser.parser.SBoardTimeline)
+        self.assertIsInstance(track.is_enabled(), bool)
         clips = track.clips
         self.assertIsInstance(clips, types.GeneratorType)
 
@@ -343,12 +345,12 @@ class SBoardTrackTest(TestCase):
                          audio_clip22.clip_range)
         self.assertEqual((775, 1429), audio_clip22.timeline_range)
 
-        self.assertEqual(1, len(video_tracks))
+        self.assertEqual(2, len(video_tracks))
         video_track = video_tracks[0]
         self.assertEqual("VideoTrack1", video_track.name)
         self.assertEqual("ATV-0A5A672AA5C01754", video_track.uid)
         video_clips = list(video_track.clips)
-        self.assertEqual(4, len(video_clips))
+        self.assertEqual(5, len(video_clips))
         video_clip1 = video_clips[0]
         video_clip2 = video_clips[1]
         video_clip3 = video_clips[2]

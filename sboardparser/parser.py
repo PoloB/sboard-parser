@@ -255,6 +255,14 @@ class SBoardAudioTrack(_SBoardNode):
         """
         return self.__timeline
 
+    def is_enabled(self):
+        """Returns True if the track is enabled, False otherwise.
+
+        Returns:
+            bool
+        """
+        return not self.xml_node.attrib['disabled']
+
 
 class SBoardVideoTrack(_SBoardNode):
 
@@ -310,6 +318,21 @@ class SBoardVideoTrack(_SBoardNode):
             SBoardProjectTimeline
         """
         return self.__timeline
+
+    def is_enabled(self):
+        """Returns True if the track is enabled, False otherwise.
+
+        Returns:
+            bool
+        """
+        # Look in the options, if the disabled tag is not here, the track is on.
+
+        disabled = self.xml_node.find("./options/disabled[@val='true']")
+
+        if disabled is None:
+            return True
+
+        return False
 
 
 class SBoardLayer(_SBoardNode):
