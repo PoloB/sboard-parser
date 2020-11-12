@@ -40,6 +40,21 @@ class SBoardParserTest(TestCase):
         project = sboardparser.parse(test_path)
         self._test_project(project)
 
+    def test_sequence(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "sequence.sboard")
+        project = sboardparser.parse(test_path)
+        self._test_project(project)
+
+    def test_3d(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "test3d.sboard")
+        project = sboardparser.parse(test_path)
+        self._test_project(project)
+
+    def test_track(self):
+        test_path = os.path.join(SAMPLE_DIRECTORY, "track.sboard")
+        project = sboardparser.parse(test_path)
+        self._test_project(project)
+
     def _test_project(self, project):
 
         # Try to get the scenes from project
@@ -77,6 +92,16 @@ class SBoardParserTest(TestCase):
         # Test categories
         cat_gen = library.categories
         self.assertIsInstance(cat_gen, types.GeneratorType)
+        self.assertIsInstance(library.project,
+                              sboardparser.parser.SBoardProject)
+
+        element_gen = library.elements
+        self.assertIsInstance(element_gen, types.GeneratorType)
+
+        for element in element_gen:
+            self.assertIsInstance(element,
+                                  sboardparser.parser.SBoardLibraryElement)
+            self._test_element(element)
 
     def _test_sequence(self, sequence):
 

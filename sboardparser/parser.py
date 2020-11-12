@@ -39,6 +39,9 @@ class _SBoardNode:
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, xml_node):
+        assert isinstance(xml_node, (cElementTree.Element,
+                                     cElementTree.ElementTree)), \
+            (type(xml_node), xml_node)
         self.__xml_node = xml_node
 
     @property
@@ -355,14 +358,17 @@ class SBoardLayer(_SBoardNode):
         element_cat_id = column_node.attrib['id']
         element_name = column_node.attrib['val']
 
-        # Get the library category
+        # Search directly in category
         project = self.__panel.project
-        cat = next(cat for cat in project.library.categories
-                   if cat.uid == element_cat_id)
+        project_node = project.xml_node
+        cat_path = "./elements/element[@id=\'{}\']".format(element_cat_id)
+        cat_node = project_node.find(cat_path)
 
-        # Get the element in the category
-        return next(element for element in cat.elements
-                    if element.name == element_name)
+        element_path = "./drawings/dwg[@name=\'{}\']".format(element_name)
+        element_node = cat_node.find(element_path)
+
+        cat = SBoardLibraryCategory(cat_node, project)
+        return SBoardLibraryElement(element_node, cat)
 
     def layer_iter(self, groups=False, recursive=False):
         """Generator of all the sub layers contained in the layer.
@@ -758,9 +764,12 @@ class SBoardTimeline(_SBoardNode):
         warp_sequences = self.xml_node.iter("warpSeq")
 
         for warp_seq in warp_sequences:
+
             scene = project_scenes_by_id.get(warp_seq.attrib["id"], None)
 
-            assert scene is not None
+            # Check if it is a scene
+            if scene is None:
+                continue
 
             yield scene
 
