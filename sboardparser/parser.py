@@ -55,10 +55,11 @@ class _SBoardNode:
 
 
 class SBoardAudioClip(_SBoardNode):
+    """An Storyboard pro audio clip"""
 
     def __init__(self, xml_node, track):
         # /projects/scenes/scene[@name='Top']/columns/column[@type='1']/soundSequence
-        super().__init__(xml_node)
+        super(SBoardAudioClip, self).__init__(xml_node)
         self.__track = track
 
     @property
@@ -221,10 +222,11 @@ class SBoardVideoClip(_SBoardNode):
 
 
 class SBoardAudioTrack(_SBoardNode):
+    """A Storyboard Pro audio track"""
 
     def __init__(self, xml_node, timeline):
         # /projects/scenes/scene[@name='Top']/columns/column[@type='1']
-        super().__init__(xml_node)
+        super(SBoardAudioTrack, self).__init__(xml_node)
         self.__timeline = timeline
 
     @property
@@ -265,10 +267,11 @@ class SBoardAudioTrack(_SBoardNode):
 
 
 class SBoardVideoTrack(_SBoardNode):
+    """A Storyboard Pro video track"""
 
     def __init__(self, xml_node, timeline):
         # /projects/scenes/scene[@name=Top]/rootgroup/nodelist/module
-        super().__init__(xml_node)
+        super(SBoardVideoTrack, self).__init__(xml_node)
         self.__timeline = timeline
 
     @property
@@ -818,7 +821,7 @@ class SBoardLibraryElement(_SBoardNode):
 
     def __init__(self, xml_node, category):
         # /projects/elements/element/drawings/dwg
-        super().__init__(xml_node)
+        super(SBoardLibraryElement, self).__init__(xml_node)
         self.__category = category
 
     @property
@@ -864,7 +867,7 @@ class SBoardLibraryCategory(_SBoardNode):
 
     def __init__(self, xml_node, library):
         # /projects/elements/element
-        super().__init__(xml_node)
+        super(SBoardLibraryCategory, self).__init__(xml_node)
         self.__library = library
 
     @property
@@ -934,7 +937,7 @@ class SBoardLibrary(_SBoardNode):
 
     def __init__(self, xml_node, project):
         # /projects/elements
-        super().__init__(xml_node)
+        super(SBoardLibrary, self).__init__(xml_node)
         self.__project = project
 
     @property
