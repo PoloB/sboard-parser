@@ -10,18 +10,17 @@ from xml.etree import cElementTree
 
 
 def _get_timeline(scene_node):
-
     assert scene_node.attrib["name"] != "Top"
 
     # Shot timeline is described in the column with type=0
-    columns = scene_node.find('columns')
-    return next(c for c in columns.findall("column")
-                if c.attrib['type'] == "0")
+    columns = scene_node.find("columns")
+    return next(c for c in columns.findall("column") if c.attrib["type"] == "0")
 
 
 def _get_timeline_range(timeline_node, uid):
-    warp_seq = next(ws for ws in timeline_node.iter("warpSeq")
-                    if ws.attrib['id'] == uid)
+    warp_seq = next(
+        ws for ws in timeline_node.iter("warpSeq") if ws.attrib["id"] == uid
+    )
 
     exposure = warp_seq.attrib["exposures"]
     ex_split = exposure.split("-")
@@ -39,9 +38,6 @@ class _SBoardNode:
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, xml_node):
-        assert isinstance(xml_node, (cElementTree.Element,
-                                     cElementTree.ElementTree)), \
-            (type(xml_node), xml_node)
         self.__xml_node = xml_node
 
     @property
@@ -87,8 +83,9 @@ class SBoardAudioClip(_SBoardNode):
         Returns:
             tuple(float, float): start, end
         """
-        return float(self.xml_node.attrib["clippingTimeStart"]), \
-            float(self.xml_node.attrib["clippingTimeStop"])
+        return float(self.xml_node.attrib["clippingTimeStart"]), float(
+            self.xml_node.attrib["clippingTimeStop"]
+        )
 
     @property
     def timeline_range(self):
@@ -97,8 +94,9 @@ class SBoardAudioClip(_SBoardNode):
         Returns:
             tuple(int, int): start, end
         """
-        return int(self.xml_node.attrib["startFrame"]), \
-            int(self.xml_node.attrib["stopFrame"])
+        return int(self.xml_node.attrib["startFrame"]), int(
+            self.xml_node.attrib["stopFrame"]
+        )
 
     @property
     def length(self):
@@ -172,8 +170,7 @@ class SBoardVideoClip(_SBoardNode):
 
         warp_sequences = top_node.iter("warpSeq")
 
-        warp_seq = next(ws for ws in warp_sequences
-                        if ws.attrib['id'] == self.uid)
+        warp_seq = next(ws for ws in warp_sequences if ws.attrib["id"] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
@@ -210,15 +207,13 @@ class SBoardVideoClip(_SBoardNode):
         # Get in /projects/elements/ and find the element matching the mov
         project = self.__track.timeline.project
 
-        cat_id = mov.attrib['id']
-        element_name = mov.attrib['val']
+        cat_id = mov.attrib["id"]
+        element_name = mov.attrib["val"]
 
         # Get the element in the library
-        cat = next(cat for cat in project.library.categories
-                   if cat.uid == cat_id)
+        cat = next(cat for cat in project.library.categories if cat.uid == cat_id)
 
-        return next(element for element in cat.elements
-                    if element.name == element_name)
+        return next(element for element in cat.elements if element.name == element_name)
 
 
 class SBoardAudioTrack(_SBoardNode):
@@ -245,8 +240,10 @@ class SBoardAudioTrack(_SBoardNode):
         Yields:
             SBoardAudioClip
         """
-        return (SBoardAudioClip(node, self)
-                for node in self.xml_node.findall("./soundSequence"))
+        return (
+            SBoardAudioClip(node, self)
+            for node in self.xml_node.findall("./soundSequence")
+        )
 
     @property
     def timeline(self):
@@ -263,7 +260,7 @@ class SBoardAudioTrack(_SBoardNode):
         Returns:
             bool
         """
-        return not self.xml_node.attrib['disabled']
+        return not self.xml_node.attrib["disabled"] == "true"
 
 
 class SBoardVideoTrack(_SBoardNode):
@@ -300,16 +297,19 @@ class SBoardVideoTrack(_SBoardNode):
         Yields:
             SBoardVideoClip
         """
-        column = self.__timeline.xml_node.find("./columns/column[@name='{}']"
-                                               "".format(self.uid))
-        uids = [node.attrib['id'] for node in column.findall("./warpSeq")]
+        column = self.__timeline.xml_node.find(
+            "./columns/column[@name='{}']" "".format(self.uid)
+        )
+        uids = [node.attrib["id"] for node in column.findall("./warpSeq")]
 
         # Get all the clips
         video_clips = self.__timeline.project.xml_node.findall("./scenes/scene")
 
-        video_clips = {video_clip.attrib['id']: video_clip
-                       for video_clip in video_clips
-                       if video_clip.attrib['id'] in uids}
+        video_clips = {
+            video_clip.attrib["id"]: video_clip
+            for video_clip in video_clips
+            if video_clip.attrib["id"] in uids
+        }
 
         return (SBoardVideoClip(video_clips[uid], self) for uid in uids)
 
@@ -372,25 +372,26 @@ class SBoardLayer(_SBoardNode):
         Returns:
             SBoardLibraryElement or None
         """
-        draw_node = self.xml_node.find('./attrs/drawing/element')
-        column_name = draw_node.attrib['col']
+        draw_node = self.xml_node.find("./attrs/drawing/element")
+        column_name = draw_node.attrib["col"]
 
         column_node = self.__panel.xml_node.find(
-            "./columns/column[@name='{}']/elementSeq".format(column_name))
+            "./columns/column[@name='{}']/elementSeq".format(column_name)
+        )
 
         if column_node is None:
             return None
 
-        element_cat_id = column_node.attrib['id']
-        element_name = column_node.attrib['val']
+        element_cat_id = column_node.attrib["id"]
+        element_name = column_node.attrib["val"]
 
         # Search directly in category
         project = self.__panel.project
         project_node = project.xml_node
-        cat_path = "./elements/element[@id=\'{}\']".format(element_cat_id)
+        cat_path = "./elements/element[@id='{}']".format(element_cat_id)
         cat_node = project_node.find(cat_path)
 
-        element_path = "./drawings/dwg[@name=\'{}\']".format(element_name)
+        element_path = "./drawings/dwg[@name='{}']".format(element_name)
         element_node = cat_node.find(element_path)
 
         cat = SBoardLibraryCategory(cat_node, project)
@@ -406,15 +407,14 @@ class SBoardLayer(_SBoardNode):
         Yields:
             SBoardLayer
         """
-        if self.xml_node.attrib['type'] == "READ":
+        if self.xml_node.attrib["type"] == "READ":
             return
 
         modules = self.__panel.xml_node.findall("./rootgroup/nodeslist/module")
-        layers_by_name = {module.attrib['name']: module for module in modules}
-        group_name = self.xml_node.attrib['name']
+        layers_by_name = {module.attrib["name"]: module for module in modules}
+        group_name = self.xml_node.attrib["name"]
 
-        for link in self.__panel.xml_node.findall(
-                "./rootgroup/linkedlist/link"):
+        for link in self.__panel.xml_node.findall("./rootgroup/linkedlist/link"):
 
             if link.attrib["out"] != group_name:
                 continue
@@ -438,7 +438,7 @@ class SBoardLayer(_SBoardNode):
         Returns:
             bool
         """
-        return self.xml_node.attrib['type'] == 'PEG'
+        return self.xml_node.attrib["type"] == "PEG"
 
 
 class SBoardPanel(_SBoardNode):
@@ -465,7 +465,7 @@ class SBoardPanel(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['id']
+        return self.xml_node.attrib["id"]
 
     @property
     def number(self):
@@ -496,8 +496,7 @@ class SBoardPanel(_SBoardNode):
         """
         timeline = _get_timeline(self.__scene.xml_node)
 
-        warp_seq = next(ws for ws in timeline
-                        if ws.attrib['id'] == self.uid)
+        warp_seq = next(ws for ws in timeline if ws.attrib["id"] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
@@ -564,8 +563,8 @@ class SBoardPanel(_SBoardNode):
 
 class SBoardScene(_SBoardNode):
     """A Storyboard Pro Scene has it is conceptually defined within StoryBoard
-     Pro. A scene is a collection of panels (see SBoardPanel) which is then
-     placed on the project timeline."""
+    Pro. A scene is a collection of panels (see SBoardPanel) which is then
+    placed on the project timeline."""
 
     def __init__(self, xml_node, project):
         # /project/scenes/scene
@@ -574,7 +573,7 @@ class SBoardScene(_SBoardNode):
 
     def __get_info(self):
         """Returns the scene node info from from the node metadata"""
-        scene_info = self.xml_node.find('./metas/meta/sceneInfo')
+        scene_info = self.xml_node.find("./metas/meta/sceneInfo")
 
         assert scene_info is not None, "No scene info found"
         return scene_info
@@ -628,8 +627,7 @@ class SBoardScene(_SBoardNode):
 
         warp_sequences = top_node.iter("warpSeq")
 
-        warp_seq = next(ws for ws in warp_sequences
-                        if ws.attrib['id'] == self.uid)
+        warp_seq = next(ws for ws in warp_sequences if ws.attrib["id"] == self.uid)
 
         return int(warp_seq.attrib["start"]), int(warp_seq.attrib["end"])
 
@@ -649,16 +647,18 @@ class SBoardScene(_SBoardNode):
         Yields:
             SBoardPanel
         """
-        scene_iter = self.__project.xml_node.findall('./scenes/scene')
+        scene_iter = self.__project.xml_node.findall("./scenes/scene")
 
-        all_panels_by_id = {panel.attrib['id']: panel
-                            for panel in scene_iter
-                            if 'panel' in panel.attrib['name']}
+        all_panels_by_id = {
+            panel.attrib["id"]: panel
+            for panel in scene_iter
+            if "panel" in panel.attrib["name"]
+        }
 
         timeline = _get_timeline(self.xml_node)
 
         # Evaluate all the warp sequences
-        for warp_seq in timeline.findall('warpSeq'):
+        for warp_seq in timeline.findall("warpSeq"):
             # Only get existing panels
             panel_id = warp_seq.attrib["id"]
             yield SBoardPanel(all_panels_by_id[panel_id], self)
@@ -671,8 +671,14 @@ class SBoardScene(_SBoardNode):
         Returns:
             SBoardSequence or None
         """
-        scene_info = self.xml_node.find('./metas/meta/sceneInfo')
-        return SBoardSequence(self.__project, scene_info.attrib['sequenceName'])
+        scene_info = self.xml_node.find("./metas/meta/sceneInfo")
+
+        sequence_name = scene_info.attrib["sequenceName"]
+
+        if sequence_name == "":
+            sequence_name = "0"
+
+        return SBoardSequence(self.__project, sequence_name)
 
 
 class SBoardSequence(object):
@@ -772,8 +778,11 @@ class SBoardTimeline(_SBoardNode):
         # ./rootgroup/nodeslist
         modules = self.xml_node.findall("./rootgroup/nodeslist/module")
 
-        return (SBoardVideoTrack(module, self) for module in modules
-                if module.attrib["name"] != "TopLayer")
+        return (
+            SBoardVideoTrack(module, self)
+            for module in modules
+            if module.attrib["name"] != "TopLayer"
+        )
 
     @property
     def scenes(self):
@@ -814,10 +823,75 @@ class SBoardTimeline(_SBoardNode):
             for panel in scene.panels:
                 yield panel
 
+    @property
+    def transitions(self):
+        """Returns a generator of the scene within the timeline.
+        The scenes are generated in the same order as they appear in the
+        timeline.
+
+        Yields:
+            SBoardScene
+        """
+
+        # Parse the warpSequences in the timeline node
+        warp_sequences = self.xml_node.iter("transitionSeq")
+
+        for warp_seq in warp_sequences:
+            yield SBoardTransition(warp_seq, self)
+
+
+class SBoardTransition(_SBoardNode):
+    """A Storyboard Pro Transition has it is conceptually defined within StoryBoard
+    Pro. A transition is a moment over scene in a timeline."""
+
+    def __init__(self, xml_node, timeline):
+        # /project/scenes/scene[@name='Top']
+        super(SBoardTransition, self).__init__(xml_node)
+        self.__timeline = timeline  # /project/scenes/scene
+
+    @property
+    def timeline(self):
+        """Returns the timeline of the scene.
+
+        Returns:
+            SBoardTimeline
+        """
+        return self.__timeline
+
+    @property
+    def uid(self):
+        """Returns the unique identifier of the transition.
+
+        Returns:
+            str
+        """
+        return self.xml_node.attrib["id"]
+
+    @property
+    def timeline_range(self):
+        """Returns the unique identifier of the transition.
+
+        Returns:
+             tuple(int, int)
+        """
+
+        exp = [int(x) for x in self.xml_node.attrib["exposures"].split("-")]
+
+        return tuple(exp)
+
+    @property
+    def type(self):
+        """Returns the unique type of the transition.
+
+        Returns:
+            str
+        """
+
+        return self.xml_node.attrib["type"]
+
 
 class SBoardLibraryElement(_SBoardNode):
-    """Storyboard Pro library element. Represents a file used within the project
-    """
+    """Storyboard Pro library element. Represents a file used within the project"""
 
     def __init__(self, xml_node, category):
         # /projects/elements/element/drawings/dwg
@@ -840,7 +914,7 @@ class SBoardLibraryElement(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['name']
+        return self.xml_node.attrib["name"]
 
     @property
     def path(self):
@@ -850,8 +924,9 @@ class SBoardLibraryElement(_SBoardNode):
             str
         """
         file_name = "{}.{}".format(self.name, self.__category.extension)
-        return os.path.join(".", self.__category.root_folder,
-                            self.__category.folder, file_name)
+        return os.path.join(
+            ".", self.__category.root_folder, self.__category.folder, file_name
+        )
 
 
 class SBoardLibraryCategory(_SBoardNode):
@@ -879,7 +954,7 @@ class SBoardLibraryCategory(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['id']
+        return self.xml_node.attrib["id"]
 
     @property
     def name(self):
@@ -890,7 +965,7 @@ class SBoardLibraryCategory(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['elementName']
+        return self.xml_node.attrib["elementName"]
 
     @property
     def root_folder(self):
@@ -899,7 +974,7 @@ class SBoardLibraryCategory(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['rootFolder']
+        return self.xml_node.attrib["rootFolder"]
 
     @property
     def folder(self):
@@ -908,7 +983,7 @@ class SBoardLibraryCategory(_SBoardNode):
         Returns:
             str
         """
-        return self.xml_node.attrib['elementFolder']
+        return self.xml_node.attrib["elementFolder"]
 
     @property
     def extension(self):
@@ -994,8 +1069,7 @@ class SBoardProject(_SBoardNode):
             SBoardSequence
         """
         # Check that there are sequences
-        for meta in self.xml_node.findall(
-                "./metas/meta[@name='sequenceExists']"):
+        for meta in self.xml_node.findall("./metas/meta[@name='sequenceExists']"):
 
             if meta.find("bool").attrib["value"] != "true":
                 return
@@ -1022,7 +1096,7 @@ class SBoardProject(_SBoardNode):
         """
         for scene in self.xml_node.findall("./scenes/scene[@name]"):
 
-            if 'shot' not in scene.attrib['name']:
+            if "shot" not in scene.attrib["name"]:
                 continue
 
             yield SBoardScene(scene, self)
@@ -1045,7 +1119,7 @@ class SBoardProject(_SBoardNode):
         Returns:
             float
         """
-        return float(self.xml_node.find('./options/framerate').attrib['val'])
+        return float(self.xml_node.find("./options/framerate").attrib["val"])
 
     @property
     def title(self):
@@ -1055,7 +1129,7 @@ class SBoardProject(_SBoardNode):
             str
         """
         node = self.xml_node.find("./metas/meta[@name='projectTitle']/string")
-        return node.attrib['value']
+        return node.attrib["value"]
 
     @property
     def library(self):
