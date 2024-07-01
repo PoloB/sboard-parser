@@ -238,6 +238,11 @@ class SBoardParserTest(TestCase):
             self.assertIsInstance(track, sboardparser.parser.SBoardAudioTrack)
             self._test_audio_track(track)
 
+        for transition in timeline.transitions:
+            self.assertIsInstance(transition, sboardparser.parser.SBoardTransition)
+            self.assertEqual(transition.timeline, timeline)
+            self._test_transition(transition)
+
         self.assertIsInstance(timeline.project, sboardparser.SBoardProject)
 
     def _test_video_track(self, track):
@@ -308,6 +313,11 @@ class SBoardParserTest(TestCase):
     def _test_layer_leaf(self, layer):
 
         self.assertEqual(0, len(list(layer.layer_iter())))
+
+    def _test_transition(self, transition):
+        self.assertIsInstance(transition.uid, str)
+        self.assertIsInstance(transition.timeline_range, tuple)
+        self.assertIsInstance(transition.type, str)
 
 
 class SBoardTrackTest(TestCase):
